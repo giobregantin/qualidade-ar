@@ -73,3 +73,7 @@ Abra o arquivo `index.html` em um navegador para visualizar os gráficos e dados
 - **index.html**: Página principal com gráficos e dados de qualidade do ar.
 - **server.js**: Código do servidor WebSocket que envia dados de sensores e interage com o Kafka.
 - **cidades.json**: Arquivo com dados de cidades por estado para simular os dados de sensores.
+
+### Atenção!
+
+Caso não apareça nenhum dado na tela, recarregue sua guia, pode ser apenas um erro de conexão com o ws.
