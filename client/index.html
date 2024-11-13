@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoramento de Qualidade do Ar</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f4f9;
+      color: #333;
+      line-height: 1.6;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    h1 {
+      text-align: center;
+      color: #4caf50;
+      margin-bottom: 20px;
+    }
+
+    #city-name {
+      text-align: center;
+      font-size: 20px;
+      margin-top: 20px;
+    }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      height: 80vh;
+      justify-content: space-between;
+      overflow: auto;
+    }
+
+    .chart-container {
+      width: 48%;
+      height: 45%;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sensor-info {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background-color: #fff;
+      padding: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      font-size: 14px;
+      max-height: 90%;
+      overflow-y: auto;
+      width: 25%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sensor-info .sensor-data {
+      margin-bottom: 10px;
+      padding: 5px;
+      border-radius: 5px;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+
+    li {
+      background-color: #fff;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      font-size: 16px;
+      transition: transform 0.2s ease;
+    }
+
+    li:hover {
+      transform: scale(1.03);
+    }
+
+    .alert {
+      background-color: #ffcc00;
+      color: #d32f2f;
+      font-weight: bold;
+    }
+
+    .alert::before {
+      content: '⚠️';
+      margin-right: 10px;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+
+      li {
+        font-size: 14px;
+      }
+
+      h1 {
+        font-size: 1.5em;
+      }
+
+      .container {
+        flex-direction: column;
+      }
+
+      .chart-container {
+        width: 100%;
+        height: 300px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Monitoramento de Qualidade do Ar</h1>
+  <div id="city-name"></div>
+
+  <div class="container">
+    <div class="chart-container">
+      <canvas id="pm25Chart" width="400" height="200"></canvas>
+      <div class="sensor-info" id="pm25Info"></div>
+    </div>
+    <div class="chart-container">
+      <canvas id="pm10Chart" width="400" height="200"></canvas>
+      <div class="sensor-info" id="pm10Info"></div>
+    </div>
+    <div class="chart-container">
+      <canvas id="co2Chart" width="400" height="200"></canvas>
+      <div class="sensor-info" id="co2Info"></div>
+    </div>
+    <div class="chart-container">
+      <canvas id="tempChart" width="400" height="200"></canvas>
+      <div class="sensor-info" id="tempInfo"></div>
+    </div>
+  </div>
+
+  <script>
+    const ws = new WebSocket('ws://localhost:8085');
+    const cityNameElement = document.getElementById('city-name');
+
+    let cidadeData = {
+      pm25: {},
+      pm10: {},
+      co2: {},
+      temperatura: {}
+    };
+
+    const createStackedBarChart = (elementId) => {
+      return new Chart(document.getElementById(elementId).getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Cidades com qualidade ruim',
+              data: [],
+              backgroundColor: 'rgba(255, 0, 0, 0.6)',
+              borderColor: 'rgba(255, 0, 0, 1)',
+              borderWidth: 1,
+              stack: 'stack1'
+            },
+            {
+              label: 'Cidades com qualidade boa',
+              data: [],
+              backgroundColor: 'rgba(0, 255, 0, 0.6)',
+              borderColor: 'rgba(0, 255, 0, 1)',
+              borderWidth: 1,
+              stack: 'stack1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    };
+
+    const pm25Chart = createStackedBarChart('pm25Chart');
+    const pm10Chart = createStackedBarChart('pm10Chart');
+    const co2Chart = createStackedBarChart('co2Chart');
+    const tempChart = createStackedBarChart('tempChart');
+    const updateStackedChartData = (chart, estado, qualidade, indice) => {
+    if (!chart.data.labels.includes(estado)) {
+        chart.data.labels.push(estado);
+    }
+
+    const estadoIndex = chart.data.labels.indexOf(estado);
+        let cidadeRuim = 0;
+        let cidadeBoa = 0;
+
+        if (indice === 'pm25') {
+            cidadeRuim = qualidade > 50 ? 1 : 0;
+            cidadeBoa = qualidade <= 50 ? 1 : 0;
+        } else if (indice === 'pm10') {
+            cidadeRuim = qualidade > 500 ? 1 : 0;
+            cidadeBoa = qualidade <= 500 ? 1 : 0;
+        } else if (indice === 'co2') {
+            cidadeRuim = qualidade > 500 ? 1 : 0;
+            cidadeBoa = qualidade <= 500 ? 1 : 0;
+        } else if (indice === 'temperatura') {
+            cidadeRuim = qualidade > 30 ? 1 : 0;
+            cidadeBoa = qualidade <= 30 ? 1 : 0;
+        }
+
+        chart.data.datasets[0].data[estadoIndex] = (chart.data.datasets[0].data[estadoIndex] || 0) + cidadeRuim;
+        chart.data.datasets[1].data[estadoIndex] = (chart.data.datasets[1].data[estadoIndex] || 0) + cidadeBoa;
+
+        chart.update();
+    };
+
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (!data.cidadeEstado) {
+        console.error('Dados inválidos recebidos:', data);
+        return;
+      }
+
+      const cidadeEstado = data.cidadeEstado || 'Cidade - Estado desconhecido';
+      const [cidade, estado] = cidadeEstado.split('-');
+
+      cityNameElement.textContent = `Cidade - Estado: ${cidade} - ${estado}`;
+
+      updateStackedChartData(pm25Chart, estado, data.pm25, 'pm25');
+      updateStackedChartData(pm10Chart, estado, data.pm10, 'pm10');
+      updateStackedChartData(co2Chart, estado, data.co2, 'co2');
+      updateStackedChartData(tempChart, estado, data.temperatura, 'temperatura');
+
+      const sensorInfo = {
+        pm25: document.getElementById('pm25Info'),
+        pm10: document.getElementById('pm10Info'),
+        co2: document.getElementById('co2Info'),
+        temperatura: document.getElementById('tempInfo')
+      };
+
+      sensorInfo.pm25.innerHTML += `<div class="sensor-data" style="background-color: ${getSensorColor('pm25', data.pm25)};"><strong>${cidade} - ${estado}</strong>: PM2.5 = ${data.pm25}</div>`;
+      sensorInfo.pm10.innerHTML += `<div class="sensor-data" style="background-color: ${getSensorColor('pm10', data.pm10)};"><strong>${cidade} - ${estado}</strong>: PM10 = ${data.pm10}</div>`;
+      sensorInfo.co2.innerHTML += `<div class="sensor-data" style="background-color: ${getSensorColor('co2', data.co2)};"><strong>${cidade} - ${estado}</strong>: CO2 = ${data.co2}</div>`;
+      sensorInfo.temperatura.innerHTML += `<div class="sensor-data" style="background-color: ${getSensorColor('temperatura', data.temperatura)};"><strong>${cidade} - ${estado}</strong>: Temperatura = ${data.temperatura}</div>`;
+    };
+
+    const getSensorColor = (sensor, value) => {
+      if (sensor === 'pm25') {
+        return value > 50 ? '#ffcccb' : '#90ee90';  
+      } else if (sensor === 'pm10') {
+        return value > 500 ? '#ffcccb' : '#90ee90';  
+      } else if (sensor === 'co2') {
+        return value > 500 ? '#ffcccb' : '#90ee90';
+      } else if (sensor === 'temperatura') {
+        return value > 30 ? '#ffcccb' : '#90ee90';
+      }
+      return 'gray';
+    };
+  </script>
+</body>
+</html>
