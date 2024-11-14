@@ -35,7 +35,7 @@ Este projeto permite monitorar a qualidade do ar em várias cidades do Brasil, u
 
 ```bash
 git clone https://github.com/usuario/projeto-monitoramento-ar.git
-cd projeto-monitoramento-ar
+cd qualidade-ar
 ```
 
 ### Passo 2: Instalar dependências
