@@ -46,7 +46,9 @@ npm install
 
 ### Passo 3: Iniciar o Kafka
 
-Se você não tiver o Kafka instalado, siga a [documentação oficial do Kafka](https://kafka.apache.org/quickstart) para configurar o servidor Kafka.
+```bash
+docker-compose up -d
+```
 
 ### Passo 4: Iniciar o servidor WebSocket
 
